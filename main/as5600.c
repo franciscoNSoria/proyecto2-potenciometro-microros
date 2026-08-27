@@ -2,6 +2,8 @@
 
 #include "driver/i2c_master.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char *TAG = "as5600";
 
@@ -9,7 +11,7 @@ static const char *TAG = "as5600";
 #define PIN_SDA         21
 #define PIN_SCL         22
 #define AS5600_ADDR     0x36
-#define I2C_FREQ_HZ     400000
+#define I2C_FREQ_HZ     100000          // 100 kHz, no 400 kHz
 #define I2C_TIMEOUT_MS  100
 
 #define REG_STATUS      0x0B
@@ -25,7 +27,15 @@ static i2c_master_dev_handle_t s_dev = NULL;
 
 static esp_err_t leer_registros(uint8_t reg, uint8_t *dst, size_t n)
 {
-    return i2c_master_transmit_receive(s_dev, &reg, 1, dst, n, I2C_TIMEOUT_MS);
+    esp_err_t err = ESP_FAIL;
+    for (int intento = 0; intento < 3; intento++) {
+        err = i2c_master_transmit_receive(s_dev, &reg, 1, dst, n, I2C_TIMEOUT_MS);
+        if (err == ESP_OK) {
+            return ESP_OK;
+        }
+        vTaskDelay(pdMS_TO_TICKS(2));
+    }
+    return err;
 }
 
 static esp_err_t leer_u12(uint8_t reg, uint16_t *valor)
